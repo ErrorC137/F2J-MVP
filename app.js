@@ -14,6 +14,7 @@ async function initApp() {
     }
 }
 
+
 async function connectWallet() {
     try {
         wallet = xrpl.Wallet.generate();
@@ -59,7 +60,9 @@ async function submitVolunteerTime() {
         updateUI();
 
     } catch (error) {
-        showError("volunteerStatus", error);
+        const message = handleXRPLerror(error);
+        showError('volunteerStatus', message);
+
     }
 }
 
@@ -235,4 +238,18 @@ function setupEventListeners() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', initApp);
+function handleXRPLerror(error) {
+    console.error("XRPL Error:", {
+        name: error.name,
+        message: error.message,
+        data: error.data
+    });
+    return error.message || "XRPL operation failed";
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+    startLeaderboardUpdates();
+    if (isConnected) updateUI();
+    console.log("App ready!");
+});
