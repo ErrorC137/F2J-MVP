@@ -1,22 +1,39 @@
+const Xumm = new window.Xumm('YOUR_XUMM_API_KEY');
 let client;
 let wallet;
 let isConnected = false;
 
+async function initXRPL() {
+    client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
+    await client.connect();
+}
+
+
 async function connectWallet() {
     try {
-        client = new xrpl.Client(XRPL_TESTNET_WS);
-        await client.connect();
+        await initXRPL();
         
-        wallet = xrpl.Wallet.generate();
-        document.getElementById('walletInfo').innerHTML = `
-            Connected Wallet: ${wallet.address}<br>
-            Balance: Loading...
-        `;
+
+        const { address, account } = await Xumm.authorize();
+        wallet = { address, account };
         
+        // Setup Trust Line
+        const trustSetTx = {
+            TransactionType: "TrustSet",
+            Account: wallet.address,
+            LimitAmount: {
+                currency: "F2J",
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+                value: "1000000"
+            }
+        };
+        
+        await client.submitAndWait(trustSetTx, { wallet });
         updateBalance();
         isConnected = true;
+        
     } catch (error) {
-        alert("Connection error: " + error.message);
+        alert("XRPL Connection Error: " + error.message);
     }
 }
 
@@ -27,20 +44,16 @@ async function updateBalance() {
         ledger_index: "validated"
     });
     
+    const xrpBalance = xrpl.dropsToXrp(response.result.account_data.Balance);
+    const f2jBalance = response.result.account_data.Balances?.find(b => 
+        b.currency === "F2J" && b.issuer === "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
+    )?.value || "0";
+
     document.getElementById('walletInfo').innerHTML = `
         Connected Wallet: ${wallet.address}<br>
-        XRP Balance: ${xrpl.dropsToXrp(response.result.account_data.Balance)} XRP<br>
-        F2J Balance: ${getF2JBalance(response.result.account_data)}
+        XRP Balance: ${xrpBalance}<br>
+        F2J Balance: ${f2jBalance}
     `;
-}
-
-function getF2JBalance(accountData) {
-    const balances = accountData.Balances || [];
-    const f2jBalance = balances.find(b => 
-        b.currency === F2J_TOKEN.currency && 
-        b.issuer === F2J_TOKEN.issuer
-    );
-    return f2jBalance ? f2jBalance.value : "0";
 }
 
 async function submitVolunteerTime() {
@@ -48,26 +61,35 @@ async function submitVolunteerTime() {
     
     const hours = document.getElementById('hours').value;
     const tokens = hours * 10;
-    
+
     try {
         const tx = {
             TransactionType: "Payment",
-            Account: PLATFORM_WALLET,
+            Account: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
             Destination: wallet.address,
             Amount: {
-                currency: F2J_TOKEN.currency,
+                currency: "F2J",
                 value: tokens.toString(),
-                issuer: F2J_TOKEN.issuer
-            }
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
+            },
+            Memos: [{
+                Memo: {
+                    MemoData: xrpl.convertStringToHex(`Volunteered ${hours} hours`)
+                }
+            }]
         };
+
+        const prepared = await client.autofill(tx);
+        const signed = xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9").sign(prepared);
+        await client.submitAndWait(signed.tx_blob);
         
-        await client.submitAndWait(tx, { wallet: xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9") });
         document.getElementById('volunteerStatus').innerHTML = 
-            `✅ ${tokens} F2J tokens received for ${hours} hours!`;
+            `✅ ${tokens} F2J tokens received!`;
         updateBalance();
+        
     } catch (error) {
         document.getElementById('volunteerStatus').innerHTML = 
-            "❌ Error submitting volunteer time";
+            "❌ Error: " + error.message;
     }
 }
 
@@ -75,41 +97,50 @@ async function submitDonation() {
     if (!isConnected) return alert("Connect wallet first!");
     
     const xrpAmount = document.getElementById('donationAmount').value;
-    const tokens = xrpAmount * 100; 
-    
+    const tokens = xrpAmount * 100;
+
     try {
-        
-        const tx1 = {
+
+        const paymentTx = {
             TransactionType: "Payment",
             Account: wallet.address,
-            Destination: PLATFORM_WALLET,
-            Amount: xrpl.xrpToDrops(xrpAmount)
+            Destination: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+            Amount: xrpl.xrpToDrops(xrpAmount),
+            Memos: [{
+                Memo: {
+                    MemoData: xrpl.convertStringToHex("Donation")
+                }
+            }]
         };
         
-        await client.submitAndWait(tx1, { wallet });
+        await client.submitAndWait(paymentTx, { wallet });
         
-        
-        const tx2 = {
+
+        const mintTx = {
             TransactionType: "Payment",
-            Account: PLATFORM_WALLET,
+            Account: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
             Destination: wallet.address,
             Amount: {
-                currency: F2J_TOKEN.currency,
+                currency: "F2J",
                 value: tokens.toString(),
-                issuer: F2J_TOKEN.issuer
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
             }
         };
         
-        await client.submitAndWait(tx2, { wallet: xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9") });
+        const preparedMint = await client.autofill(mintTx);
+        const signedMint = xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9").sign(preparedMint);
+        await client.submitAndWait(signedMint.tx_blob);
         
         document.getElementById('donationStatus').innerHTML = 
-            `✅ Donated ${xrpAmount} XRP and received ${tokens} F2J tokens!`;
+            `✅ Donated ${xrpAmount} XRP ➔ ${tokens} F2J received!`;
         updateBalance();
+        
     } catch (error) {
         document.getElementById('donationStatus').innerHTML = 
-            "❌ Error processing donation";
+            "❌ Error: " + error.message;
     }
 }
+
 
 async function redeemTokens() {
     if (!isConnected) return alert("Connect wallet first!");
@@ -118,103 +149,33 @@ async function redeemTokens() {
         const tx = {
             TransactionType: "Payment",
             Account: wallet.address,
-            Destination: PLATFORM_WALLET,
+            Destination: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
             Amount: {
-                currency: F2J_TOKEN.currency,
+                currency: "F2J",
                 value: "10",
-                issuer: F2J_TOKEN.issuer
-            }
+                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
+            },
+            Memos: [{
+                Memo: {
+                    MemoData: xrpl.convertStringToHex("Redeemed reward")
+                }
+            }]
         };
         
         await client.submitAndWait(tx, { wallet });
         document.getElementById('redemptionStatus').innerHTML = 
-            "✅ Reward unlocked! Check your email for discount code";
+            "✅ Reward unlocked! Check your email.";
         updateBalance();
+        
     } catch (error) {
         document.getElementById('redemptionStatus').innerHTML = 
-            "❌ Error redeeming tokens";
+            "❌ Error: " + error.message;
     }
 }
 
-function setupRewardCatalog() {
-    document.querySelectorAll('.redeem-btn').forEach(button => {
-      button.addEventListener('click', async function() {
-        const rewardItem = this.closest('.reward-item');
-        const cost = parseInt(rewardItem.getAttribute('data-cost'));
-        const rewardName = rewardItem.getAttribute('data-name');
-        
-        if (!isConnected) {
-          document.getElementById('rewardStatus').innerHTML = 
-            '❌ Connect your wallet first!';
-          return;
-        }
-  
-        try {
-          const tx = {
-            TransactionType: "Payment",
-            Account: wallet.address,
-            Destination: PLATFORM_WALLET,
-            Amount: {
-              currency: F2J_TOKEN.currency,
-              value: cost.toString(),
-              issuer: F2J_TOKEN.issuer
-            }
-          };
-          
-          await client.submitAndWait(tx, { wallet });
-          document.getElementById('rewardStatus').innerHTML = 
-            `✅ Success! Redeemed: ${rewardName}`;
-          updateBalance();
-        } catch (error) {
-          document.getElementById('rewardStatus').innerHTML = 
-            `❌ Error: ${error.message}`;
-        }
-      });
-    });
-  }
 
-  function setupProofUpload() {
-    const proofFile = document.getElementById('proofFile');
-    const submitBtn = document.getElementById('submitProofBtn');
-    const fileName = document.getElementById('fileName');
-    const previewContainer = document.getElementById('previewContainer');
-    const previewImage = document.getElementById('previewImage');
-    const proofStatus = document.getElementById('proofStatus');
-  
-    proofFile.addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (file) {
-        fileName.textContent = file.name;
-        submitBtn.disabled = false;
-        
-        
-        if (file.type.match('image.*')) {
-          const reader = new FileReader();
-          reader.onload = function(event) {
-            previewImage.src = event.target.result;
-            previewContainer.style.display = 'block';
-          };
-          reader.readAsDataURL(file);
-        }
-      }
-    });
-  
-    submitBtn.addEventListener('click', async function() {
-      if (!proofFile.files[0]) return;
-      
-      proofStatus.innerHTML = '<div class="loading">⏳ Validating your proof...</div>';
-      
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      
-      const isApproved = Math.random() < 0.75;
-      
-      if (isApproved) {
-        proofStatus.innerHTML = '<div class="success">✅ Proof approved! 10 F2J tokens minted.</div>';
-
-        document.getElementById('hours').value = 1;
-        await submitVolunteerTime();
-      } else {
-        proofStatus.innerHTML = '<div class="error">❌ Proof rejected. Please ensure the image clearly shows your volunteer activity.</div>';
-      }
-    });
-  }
+document.addEventListener('DOMContentLoaded', async () => {
+    await initXRPL();
+    setupRewardCatalog();
+    setupProofUpload();
+});
