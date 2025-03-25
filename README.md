@@ -1,60 +1,102 @@
-Free to Joy - XRPL Hackathon 2025
+**Free to Joy - XRPL Hackathon 2025**
 
-Overview  
-Free to Joy revolutionizes social impact by tokenizing volunteered time as a tradable cryptocurrency on the XRPL blockchain. 
-This project addresses the lack of transparent incentive systems for volunteerism, converting hours of community service into 
-redeemable F2J tokens that can be exchanged for rewards, discounts, or privileges. By leveraging Web3 technology, we create a 
-global ecosystem where altruism becomes measurable, tradable, and sustainable.
+**Overview**
 
-Features  
-XRPL-Powered Tokenization  
-Convert volunteered hours/donations into F2J tokens using XRPL's fast and low-cost transactions.  
+Free to Joy transforms volunteered time into tradable tokens on the XRP Ledger (XRPL). This platform enables organizations to incentivize social responsibility through blockchain-verified contributions, creating a transparent ecosystem for volunteerism and charitable giving.
+Key Features
 
-Proof-of-Contribution Validation  
-Decentralized validation of volunteer actions via photo proofs of contribution and organizational validation.  
+    XRPL-based token issuance (F2J currency)
 
-Token Redemption Marketplace  
-Burn tokens for rewards like tutoring sessions, meal vouchers, or partner discounts.  
+    Volunteer hour validation via XRPL Hooks
 
-Web3 Interface  
-User-friendly dashboard for tracking contributions, token balances, redemption history.  
+    Real-time transaction tracking on XRPL ledger
 
-Real-Time Impact Tracking
-All transactions are recorded immutably on the XRPL ledger for public transparency.  
+    Token redemption system compatible with XRPL DEX
 
-DAO-Ready Architecture  
-Built-in governance hooks for future dao integration.
+    Testnet-ready architecture
 
-**XRPL Integration**
-Key Features Used
-Tokenization - F2J tokens issued as [XRPL Issued Currencies](https://xrpl.org/issued-currencies.html)
-Consensus: Transactions validated via [RPCA](https://xrpl.org/consensus.html) in 3-5 seconds
-Hooks: Smart contract-like logic for automated validation
+**XRPL Implementation**
 
-Technologies Used  
-XRPL - Blockchain layer for token issuance and transactions  
-xrpl.js - XRPL integration and smart contract logic  
-Firebase - Temporary user data storage
-React - Frontend interface with Web3 wallet connectivity  
-Cloudinary - Proof-of-contribution image hosting  
-Airtable - Reward catalog management  
+Core Components
 
- Setup and Installation  
+    Token Standard: XLS-14 compliant issued currency
 
- 1. Prerequisites  
-- [Node.js v18+](https://nodejs.org/)  
-- [Git](https://git-scm.com/)  
-- XRPL Testnet Wallet ([Xumm](https://xumm.app/))  
+    Consensus: XRPL RPCA protocol (3-5 second finality)
 
- 2. Clone and Configure  
-```bash
-git clone https://github.com/your-username/free-to-joy-mvp.git
-cd free-to-joy-mvp
-npm install
+    Transaction Types: Payment, TrustSet, OfferCreate
 
+    Network: XRPL Testnet/Mainnet compatibility
 
-XRPL Resources
-- [XRPL Documentation](https://xrpl.org/)
-- [Testnet Explorer](https://testnet.xrpl.org)
-- [xrpl.js API Reference](https://js.xrpl.org/)
-- [Token Issuing Guide](https://xrpl.org/issue-a-fungible-token.html)
+Technical Flow
+
+    1.Volunteer submits proof through web interface
+
+    2.Validation Hook triggers on XRPL
+
+    3.Successful verification mints F2J tokens
+
+    4.Tokens stored in Xumm-compatible wallets
+
+    5.Redemption burns tokens via XRPL transactions
+
+Technologies Used
+
+    Blockchain: XRPL (XRP Ledger)
+
+    Libraries: xrpl.js v2.7, Xumm SDK
+
+    Frontend: React, HTML5, CSS3
+
+    Backend: Node.js, Firebase
+
+    Media: Cloudinary Image API
+
+**Setup Instructions**
+
+Requirements
+
+    Node.js 18.x
+
+    Xumm Developer Account
+
+    XRPL Testnet Credentials
+
+Installation
+
+    git clone https://github.com/your-username/free-to-joy-mvp.git
+
+    cd free-to-joy-mvp
+
+    npm install
+
+    npm run build
+
+Configuration
+
+Create .env file:
+
+    XRPL_NETWORK=testnet
+
+    XRPL_WS_URL=wss://s.altnet.rippletest.net:51233 
+
+    ISSUER_ADDRESS=rYourIssuerAddressHere
+
+**Testing Guide**
+
+Acquire test XRP from faucet.xrpl.org
+
+Run test suite:
+
+    npm test
+
+Monitor transactions on testnet.xrpl.org
+
+**XRPL Documentation**
+
+Official Docs: xrpl.org
+
+Testnet Explorer: testnet.xrpl.org
+
+xrpl.js Reference: js.xrpl.org
+
+Hooks Guide: xrpl-hooks.readme.io
