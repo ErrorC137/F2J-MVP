@@ -159,19 +159,29 @@ input {
 
 .leaderboard-item {
     display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    margin: 5px 0;
-    background: #f8f8f8;
-    border-radius: 4px;
+    align-items: center;
+    padding: 12px;
+    margin: 8px 0;
+    background: #ffffff;
+    border: 1px solid #eeeeee;
+    border-radius: 8px;
+}
+
+.leaderboard-item .rank {
+    width: 40px;
+    font-weight: bold;
+    color: #4CAF50;
 }
 
 .leaderboard-item .address {
+    flex-grow: 1;
     color: #2c3e50;
-    font-weight: 500;
 }
 
-.leaderboard-item .tokens {
-    color: #4CAF50;
-    font-weight: bold;
+.leaderboard-item .badge {
+    background: #4CAF50;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 0.9em;
 }
