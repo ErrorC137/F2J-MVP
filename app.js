@@ -1,40 +1,169 @@
-const Xumm = new window.Xumm('YOUR_XUMM_API_KEY');
 let client;
 let wallet;
 let isConnected = false;
+const ISSUER_ADDRESS = 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe';
+let leaderboardUpdateInterval;
 
-async function initXRPL() {
-    client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
-    await client.connect();
+async function initApp() {
+    try {
+        client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
+        await client.connect();
+        setupEventListeners();
+    } catch (error) {
+        console.error("Initialization failed:", error);
+    }
 }
-
 
 async function connectWallet() {
     try {
-        await initXRPL();
+        wallet = xrpl.Wallet.generate();
         
-
-        const { address, account } = await Xumm.authorize();
-        wallet = { address, account };
+        await client.fundWallet(wallet);
         
-        // Setup Trust Line
         const trustSetTx = {
             TransactionType: "TrustSet",
             Account: wallet.address,
             LimitAmount: {
                 currency: "F2J",
-                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+                issuer: ISSUER_ADDRESS,
                 value: "1000000"
             }
         };
-        
         await client.submitAndWait(trustSetTx, { wallet });
-        updateBalance();
-        isConnected = true;
         
+        updateUI();
+        startLeaderboardUpdates();
+        isConnected = true;
+
     } catch (error) {
-        alert("XRPL Connection Error: " + error.message);
+        showError("Connection failed: " + error.message);
     }
+}
+
+async function submitVolunteerTime() {
+    if (!validateConnection()) return;
+    
+    const hours = document.getElementById('hours').value;
+    const tokens = hours * 10;
+
+    try {
+        const tx = await prepareTransaction({
+            TransactionType: "Payment",
+            Account: ISSUER_ADDRESS,
+            Destination: wallet.address,
+            Amount: xrplIssuedAmount(tokens)
+        }, true);
+        
+        await submitTransaction(tx);
+        showSuccess(`volunteerStatus`, `${tokens} F2J received!`);
+        updateUI();
+
+    } catch (error) {
+        showError("volunteerStatus", error);
+    }
+}
+
+async function submitDonation() {
+    if (!validateConnection()) return;
+    
+    const xrpAmount = document.getElementById('donationAmount').value;
+    const tokens = xrpAmount * 100;
+
+    try {
+        await submitTransaction(await prepareTransaction({
+            TransactionType: "Payment",
+            Account: wallet.address,
+            Destination: ISSUER_ADDRESS,
+            Amount: xrpl.xrpToDrops(xrpAmount)
+        }));
+        
+        await submitTransaction(await prepareTransaction({
+            TransactionType: "Payment",
+            Account: ISSUER_ADDRESS,
+            Destination: wallet.address,
+            Amount: xrplIssuedAmount(tokens)
+        }, true));
+        
+        showSuccess(`donationStatus`, `${tokens} F2J minted!`);
+        updateUI();
+
+    } catch (error) {
+        showError("donationStatus", error);
+    }
+}
+
+async function redeemTokens() {
+    if (!validateConnection()) return;
+    
+    try {
+        await submitTransaction(await prepareTransaction({
+            TransactionType: "Payment",
+            Account: wallet.address,
+            Destination: ISSUER_ADDRESS,
+            Amount: xrplIssuedAmount(10)
+        }));
+        
+        showSuccess(`redemptionStatus`, "Reward unlocked!");
+        updateUI();
+
+    } catch (error) {
+        showError("redemptionStatus", error);
+    }
+}
+
+async function updateLeaderboard() {
+    try {
+        const response = await client.request({
+            command: "account_lines",
+            account: ISSUER_ADDRESS,
+            ledger_index: "validated"
+        });
+
+        const holders = response.result.lines
+            .filter(l => l.currency === "F2J")
+            .sort((a, b) => b.balance - a.balance)
+            .slice(0, 10);
+
+        const leaderboardHTML = holders.map((holder, index) => `
+            <li class="leaderboard-item">
+                <span class="rank">${index + 1}.</span>
+                <span class="address">${shortenAddress(holder.account)}</span>
+                <span class="tokens">${holder.balance} F2J</span>
+            </li>
+        `).join('');
+
+        document.getElementById('leaderboardList').innerHTML = leaderboardHTML;
+
+    } catch (error) {
+        console.error("Leaderboard update failed:", error);
+    }
+}
+
+function xrplIssuedAmount(value) {
+    return {
+        currency: "F2J",
+        issuer: ISSUER_ADDRESS,
+        value: value.toString()
+    };
+}
+
+async function prepareTransaction(tx, issuerSign = false) {
+    const prepared = await client.autofill(tx);
+    return issuerSign 
+        ? xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9").sign(prepared)
+        : wallet.sign(prepared);
+}
+
+async function submitTransaction(signedTx) {
+    const result = await client.submitAndWait(signedTx.tx_blob);
+    if (result.result.meta.TransactionResult !== "tesSUCCESS") {
+        throw new Error("Transaction failed");
+    }
+}
+
+function updateUI() {
+    updateBalance();
+    updateLeaderboard();
 }
 
 async function updateBalance() {
@@ -44,138 +173,66 @@ async function updateBalance() {
         ledger_index: "validated"
     });
     
-    const xrpBalance = xrpl.dropsToXrp(response.result.account_data.Balance);
-    const f2jBalance = response.result.account_data.Balances?.find(b => 
-        b.currency === "F2J" && b.issuer === "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
+    const data = response.result.account_data;
+    const xrpBalance = xrpl.dropsToXrp(data.Balance);
+    const f2jBalance = data.Balances?.find(b => 
+        b.currency === "F2J" && b.issuer === ISSUER_ADDRESS
     )?.value || "0";
 
     document.getElementById('walletInfo').innerHTML = `
-        Connected Wallet: ${wallet.address}<br>
-        XRP Balance: ${xrpBalance}<br>
-        F2J Balance: ${f2jBalance}
+        ${shortenAddress(wallet.address)}<br>
+        XRP: ${xrpBalance}<br>
+        F2J: ${f2jBalance}
     `;
 }
 
-async function submitVolunteerTime() {
-    if (!isConnected) return alert("Connect wallet first!");
-    
-    const hours = document.getElementById('hours').value;
-    const tokens = hours * 10;
-
-    try {
-        const tx = {
-            TransactionType: "Payment",
-            Account: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
-            Destination: wallet.address,
-            Amount: {
-                currency: "F2J",
-                value: tokens.toString(),
-                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
-            },
-            Memos: [{
-                Memo: {
-                    MemoData: xrpl.convertStringToHex(`Volunteered ${hours} hours`)
-                }
-            }]
-        };
-
-        const prepared = await client.autofill(tx);
-        const signed = xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9").sign(prepared);
-        await client.submitAndWait(signed.tx_blob);
-        
-        document.getElementById('volunteerStatus').innerHTML = 
-            `✅ ${tokens} F2J tokens received!`;
-        updateBalance();
-        
-    } catch (error) {
-        document.getElementById('volunteerStatus').innerHTML = 
-            "❌ Error: " + error.message;
-    }
+function shortenAddress(address) {
+    return address.slice(0, 6) + "..." + address.slice(-4);
 }
 
-async function submitDonation() {
-    if (!isConnected) return alert("Connect wallet first!");
-    
-    const xrpAmount = document.getElementById('donationAmount').value;
-    const tokens = xrpAmount * 100;
+function showSuccess(elementId, message) {
+    const element = document.getElementById(elementId);
+    element.innerHTML = `✅ ${message}`;
+    element.style.color = "#2e7d32";
+}
 
-    try {
+function showError(elementId, error) {
+    const element = document.getElementById(elementId);
+    element.innerHTML = `❌ ${error.message || error}`;
+    element.style.color = "#c62828";
+}
 
-        const paymentTx = {
-            TransactionType: "Payment",
-            Account: wallet.address,
-            Destination: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
-            Amount: xrpl.xrpToDrops(xrpAmount),
-            Memos: [{
-                Memo: {
-                    MemoData: xrpl.convertStringToHex("Donation")
-                }
-            }]
-        };
-        
-        await client.submitAndWait(paymentTx, { wallet });
-        
+function validateConnection() {
+    if (!isConnected) {
+        alert("Please connect wallet first");
+        return false;
+    }
+    return true;
+}
 
-        const mintTx = {
-            TransactionType: "Payment",
-            Account: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
-            Destination: wallet.address,
-            Amount: {
-                currency: "F2J",
-                value: tokens.toString(),
-                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
+function startLeaderboardUpdates() {
+    leaderboardUpdateInterval = setInterval(updateLeaderboard, 30000);
+    updateLeaderboard();
+}
+
+function setupEventListeners() {
+    document.querySelectorAll('.redeem-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const cost = parseInt(this.closest('.reward-item').dataset.cost);
+            try {
+                await submitTransaction(await prepareTransaction({
+                    TransactionType: "Payment",
+                    Account: wallet.address,
+                    Destination: ISSUER_ADDRESS,
+                    Amount: xrplIssuedAmount(cost)
+                }));
+                showSuccess('rewardStatus', `Redeemed ${cost} F2J!`);
+                updateUI();
+            } catch (error) {
+                showError('rewardStatus', error);
             }
-        };
-        
-        const preparedMint = await client.autofill(mintTx);
-        const signedMint = xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9").sign(preparedMint);
-        await client.submitAndWait(signedMint.tx_blob);
-        
-        document.getElementById('donationStatus').innerHTML = 
-            `✅ Donated ${xrpAmount} XRP ➔ ${tokens} F2J received!`;
-        updateBalance();
-        
-    } catch (error) {
-        document.getElementById('donationStatus').innerHTML = 
-            "❌ Error: " + error.message;
-    }
+        });
+    });
 }
 
-
-async function redeemTokens() {
-    if (!isConnected) return alert("Connect wallet first!");
-    
-    try {
-        const tx = {
-            TransactionType: "Payment",
-            Account: wallet.address,
-            Destination: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
-            Amount: {
-                currency: "F2J",
-                value: "10",
-                issuer: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
-            },
-            Memos: [{
-                Memo: {
-                    MemoData: xrpl.convertStringToHex("Redeemed reward")
-                }
-            }]
-        };
-        
-        await client.submitAndWait(tx, { wallet });
-        document.getElementById('redemptionStatus').innerHTML = 
-            "✅ Reward unlocked! Check your email.";
-        updateBalance();
-        
-    } catch (error) {
-        document.getElementById('redemptionStatus').innerHTML = 
-            "❌ Error: " + error.message;
-    }
-}
-
-
-document.addEventListener('DOMContentLoaded', async () => {
-    await initXRPL();
-    setupRewardCatalog();
-    setupProofUpload();
-});
+document.addEventListener('DOMContentLoaded', initApp);
