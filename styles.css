@@ -150,3 +150,28 @@ input {
     background: #e3f2fd;
     color: #1565c0;
   }
+
+.leaderboard-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+}
+
+.leaderboard-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    margin: 5px 0;
+    background: #f8f8f8;
+    border-radius: 4px;
+}
+
+.leaderboard-item .address {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.leaderboard-item .tokens {
+    color: #4CAF50;
+    font-weight: bold;
+}
