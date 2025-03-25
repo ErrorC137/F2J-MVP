@@ -5,7 +5,7 @@ async function updateLeaderboard() {
         const client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
         await client.connect();
         
-        // Get all F2J token holders
+
         const response = await client.request({
             command: "account_lines",
             account: ISSUER_ADDRESS,
@@ -33,13 +33,11 @@ async function updateLeaderboard() {
     }
 }
 
-// Auto-update every 60 seconds
 function startLeaderboardUpdates() {
     leaderboardUpdateInterval = setInterval(updateLeaderboard, 60000);
     updateLeaderboard(); // Initial load
 }
 
-// Stop updates when needed
 function stopLeaderboardUpdates() {
     clearInterval(leaderboardUpdateInterval);
 }
