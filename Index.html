@@ -73,8 +73,18 @@
           <img id="previewImage" style="max-width: 200px; margin-top: 10px;">
         </div>
       </div>
-      
-    <script src="https://cdn.jsdelivr.net/npm/xrpl@2.6.0/build/xrpl-latest-min.js"></script>
+    
+    <div class="section">
+        <h2>🏆 Top Contributors</h2>
+        <ul id="leaderboardList" class="leaderboard-list">
+            <li class="leaderboard-loading">Loading leaderboard...</li>
+        </ul>
+    </div>
+    <div id="global-error" style="display: none; color: red; padding: 10px;"></div>
+    <div id="walletInfo"></div>
+    <div id="leaderboardList"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/xrpl@2.7.0/build/xrpl-latest-min.js"></script>
     <script src="config.js"></script>
     <script src="app.js"></script>
 </body>

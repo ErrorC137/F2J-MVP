@@ -3,17 +3,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let wallet;
     let isConnected = false;
     let leaderboardUpdateInterval;
-    const ISSUER_ADDRESS = 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe';
+    const ISSUER_ADDRESS = 'rLjzXx2nnES7jxb3shW1FCuChw8bFKXvZK';
 
 
     async function initApp() {
         try {
             client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
             await client.connect();
-            setupEventListeners();
-            console.log("XRPL connection established");
+            console.log("Connected to XRPL Testnet");
         } catch (error) {
-            showGlobalError(`Initialization failed: ${error.message}`);
+            showGlobalError(`Connection failed: ${error.message}`);
         }
     }
 
@@ -38,8 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currency: "F2J",
                     issuer: ISSUER_ADDRESS,
                     value: "1000000"
-                },
-                LastLedgerSequence: undefined
+                }
             });
             
             const signedTrust = wallet.sign(trustSetTx);
@@ -173,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function prepareTransaction(tx, issuerSign = false) {
         const prepared = await client.autofill(tx);
         return issuerSign 
-            ? xrpl.Wallet.fromSeed("sn3nxiW7v8KXzPzAqzyHXbSSKNuN9").sign(prepared)
+            ? xrpl.Wallet.fromSeed("sEdTee8Q7yVawi6Qq6bG7NLgoCtnHDP").sign(prepared)
             : wallet.sign(prepared);
     }
 
